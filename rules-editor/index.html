@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIDS Rules Editor | Suricata & Snort Rule Builder</title>
+    <meta name="description" content="NIDS Rules Editor is a browser-based Suricata and Snort rule builder for crafting and exporting .rules files without installing anything.">
+    <meta name="keywords" content="NIDS rules editor, Suricata rules, Snort local rules, IDS configuration, .rules editor">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://nids-rules-editor.run.place/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="NIDS Rules Editor">
+    <meta property="og:description" content="Create and customize Suricata/Snort file '.rules' directly in your browser with tables, previews, and exports.">
+    <meta property="og:url" content="https://nids-rules-editor.run.place/">
+    <meta property="og:site_name" content="NIDS Rules Editor">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="NIDS Rules Editor">
+    <meta name="twitter:description" content="Browser-based Suricata & Snort rule builder with validation and table editing.">
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "NIDS Rules Editor",
+        "url": "https://nids-rules-editor.run.place/",
+        "applicationCategory": "SecurityApplication",
+        "about": "Create, edit, and export Suricata and Snort IDS rules directly in the browser.",
+        "operatingSystem": "Any",
+        "creator": {
+            "@type": "Organization",
+            "name": "NIDS Rules Editor"
+        }
+    }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+        }
+        
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f8f9fa;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .toolbar {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: #fafafa;
+        }
+        
+        .button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .button:hover {
+            background: #f0f0f0;
+            border-color: #bbb;
+        }
+        
+        .button.primary {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .button.primary:hover {
+            background: #5568d3;
+            border-color: #5568d3;
+        }
+        
+        .button.danger {
+            background: #ff6b6b;
+            color: white;
+            border-color: #ff6b6b;
+        }
+        
+        .button.danger:hover {
+            background: #ee5a52;
+            border-color: #ee5a52;
+        }
+        
+        .status {
+            margin-left: auto;
+            font-size: 12px;
+            color: #999;
+            padding: 8px 12px;
+            background: #e8f5e9;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .status.show {
+            display: inline-block;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .editor-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .line-numbers {
+            background: #f5f5f5;
+            color: #999;
+            padding: 15px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            text-align: right;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-width: 50px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .editor-area {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #editor {
+            flex: 1;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            border: none;
+            resize: none;
+            outline: none;
+            background: white;
+            color: #333;
+        }
+        
+        .footer {
+            padding: 10px 20px;
+            border-top: 1px solid #e0e0e0;
+            background: #f8f9fa;
+            font-size: 12px;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .duplicate-warning {
+            margin-left: auto;
+            color: #c62828;
+            font-weight: 600;
+            display: none;
+        }
+
+        .duplicate-warning.show {
+            display: inline;
+        }
+
+        tr.duplicate-sid {
+            background: #fff6d9;
+        }
+
+        tr.duplicate-sid:hover {
+            background: #ffe9b3;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .modal-content h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .modal-content p {
+            margin-bottom: 20px;
+            color: #666;
+        }
+
+        .modal textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+        }
+
+        .modal textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        #editPreview {
+            background: #f5f5f5;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e0e0e0;
+            background: #fafafa;
+        }
+        
+        .tab-button {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-button:hover {
+            color: #333;
+        }
+        
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .table-wrapper {
+            flex: 1;
+            overflow: auto;
+            padding: 15px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 12px;
+        }
+        
+        th, td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            min-height: 40px;
+            vertical-align: middle;
+        }
+        
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        tr:hover {
+            background: #f9f9f9;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            box-sizing: border-box;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .msg-cell {
+            max-width: 250px;
+            padding: 0 8px;
+        }
+        
+        .msg-cell input {
+            width: 100%;
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 8px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            height: 32px;
+        }
+        
+        .msg-cell input:focus {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+        
+        .btn-small {
+            padding: 6px 10px;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            height: 32px;
+        }
+        
+        .btn-small:hover {
+            background: #f0f0f0;
+        }
+        
+        .btn-small.delete {
+            color: #ff6b6b;
+            border-color: #ff6b6b;
+        }
+        
+        .btn-small.delete:hover {
+            background: #ffebee;
+        }
+
+        .table-toolbar {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #fdfdfd;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .table-search {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .table-search label {
+            font-size: 12px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        #messageSearch {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+
+        #messageSearch:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        #editModal .modal-content {
+            width: 90vw;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            text-align: left;
+        }
+
+        @media (max-width: 640px) {
+            #editModal .modal-content {
+                width: 95vw;
+                padding: 20px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modal textarea,
+            .modal input,
+            .modal select {
+                font-size: 14px;
+            }
+
+            .modal-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ NIDS Rules Editor</h1>
+            <p>Create, validate, and export Suricata & Snort file ".rules" directly in your browser.</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-button active" data-tab="editor" onclick="switchTab('editor', this)">📝 Text Editor</button>
+            <button class="tab-button" data-tab="table" onclick="switchTab('table', this)">📊 Rules Table</button>
+        </div>
+        
+        <div class="toolbar">
+            <div class="file-input-wrapper">
+                <button class="button primary" onclick="document.getElementById('fileInput').click()">
+                    📂 Import
+                </button>
+                <input type="file" id="fileInput" accept=".rules,.txt" onchange="loadFile(event)">
+            </div>
+            <button class="button primary" onclick="promptDownload()">
+                💾 Export
+            </button>
+            <button class="button" id="copyButton" onclick="copyToClipboard()">
+                📋 Clipboard
+            </button>
+            <button class="button" onclick="clearEditor()">
+                🗑️ Clear
+            </button>
+            <button class="button" id="autoFormatBtn" onclick="autoFormat()">
+                ✨ Auto Format
+            </button>
+            <span class="status" id="status"></span>
+        </div>
+        
+        <div class="tab-content active" id="editor-tab">
+            <div class="content">
+                <div class="line-numbers" id="lineNumbers">1</div>
+                <div class="editor-area">
+                    <textarea id="editor" placeholder="Paste your Suricata rules here or load a file..."></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" id="table-tab">
+            <div class="table-toolbar">
+                <div class="table-search">
+                    <label for="messageSearch">Filter:</label>
+                    <input type="text" id="messageSearch" placeholder="Search rule messages…" oninput="handleMessageFilter(this.value)">
+                </div>
+                <button class="button primary" onclick="addRule()">➕ Add Rule</button>
+            </div>
+            <div class="table-wrapper">
+                <table id="rulesTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">SID</th>
+                            <th style="width: 220px;">Message</th>
+                            <th style="width: 220px;">Rule Preview</th>
+                            <th style="width: 200px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rulesTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <span id="stats">Lines: 0 | Characters: 0 | Rules: 0</span>
+            <span id="duplicateWarning" class="duplicate-warning"></span>
+            <span style="font-size: 12px; color: #555; font-weight: 600;">
+                © 2025 · Made by <a href="https://github.com/Tomparte" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">Tomparte</a>
+            </span>
+        </div>
+    </div>
+    
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <h2>Clear Editor?</h2>
+            <p>Are you sure you want to clear all content? This action cannot be undone.</p>
+            <div class="modal-buttons">
+                <button class="button" onclick="closeModal()">Cancel</button>
+                <button class="button danger" onclick="confirmClear()">Clear</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <h2>Edit Rule</h2>
+            <form id="editForm" style="display: flex; flex-direction: column; gap: 15px;">
+                <div>
+                    <label style="font-weight: 600; display: block; margin-bottom: 5px;">Action:</label>
+                    <select id="editAction" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <option value="alert">alert</option>
+                        <option value="drop">drop</option>
+                        <option value="pass">pass</option>
+                        <option value="reject">reject</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight: 600; display: block; margin-bottom: 5px;">Protocol:</label>
+                    <input type="text" id="editProtocol" style="width: 100%; padding: 8px;">
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Src IP:</label>
+                        <input type="text" id="editSource" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Src Port:</label>
+                        <input type="text" id="editSrcPort" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Dest IP:</label>
+                        <input type="text" id="editDest" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Dest Port:</label>
+                        <input type="text" id="editDestPort" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-weight: 600; display: block; margin-bottom: 5px;">Message:</label>
+                    <input type="text" id="editMsg" style="width: 100%; padding: 8px;">
+                </div>
+                <div class="form-grid">
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">SID:</label>
+                        <input type="text" id="editSid" style="width: 100%; padding: 8px;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 600; display: block; margin-bottom: 5px;">Rev:</label>
+                        <input type="text" id="editRev" style="width: 100%; padding: 8px;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-weight: 600; display: block; margin-bottom: 5px;">Additional Options:</label>
+                    <textarea id="editOptions" placeholder="content:&quot;/api&quot;; flow:to_server;" style="min-height: 100px;"></textarea>
+                    <p style="font-size: 12px; color: #777; margin-top: 4px;">Separate entries with new lines or semicolons. Leave empty to keep only msg/sid/rev.</p>
+                </div>
+                <div>
+                    <label style="font-weight: 600; display: block; margin-bottom: 5px;">Live Rule Preview:</label>
+                    <textarea id="editPreview" readonly style="min-height: 120px;"></textarea>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="button" onclick="closeEditModal()">Cancel</button>
+                    <button type="button" class="button primary" onclick="saveEditedRule()">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const lineNumbers = document.getElementById('lineNumbers');
+        const status = document.getElementById('status');
+        const stats = document.getElementById('stats');
+        const confirmModal = document.getElementById('confirmModal');
+        const duplicateWarning = document.getElementById('duplicateWarning');
+        const autoFormatBtn = document.getElementById('autoFormatBtn');
+        const copyBtn = document.getElementById('copyButton');
+        const defaultExampleRules = `# Example local.rules :\nalert http $EXTERNAL_NET any -> $HOME_NET any (\n    msg:"Example alert for suspicious login attempt";\n    content:"/login";\n    http_method;\n    sid:1000001;\n    rev:1;\n)\n\nalert tcp any any -> $HOME_NET 445 (\n    msg:"Example SMB exploit attempt";\n    flow:to_server,established;\n    content:"|90 90 90|";\n    sid:1000002;\n    rev:1;\n)\n`;
+        
+        let parsedRules = [];
+        let duplicateSidSet = new Set();
+        let messageFilter = '';
+        
+        function loadExampleRulesIfEmpty() {
+            if (editor.value.trim()) return;
+            editor.value = defaultExampleRules;
+            showStatus('Loaded example rules—replace with your own anytime.', 'success');
+        }
+
+        // Switch between tabs
+        function switchTab(tabName, triggerButton = null) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.toggle('active', tab.id === `${tabName}-tab`);
+            });
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                const matches = btn.dataset.tab === tabName;
+                btn.classList.toggle('active', matches);
+            });
+            
+            if (triggerButton && !triggerButton.classList.contains('active')) {
+                triggerButton.classList.add('active');
+            }
+            
+            if (autoFormatBtn) {
+                autoFormatBtn.style.display = tabName === 'table' ? 'none' : 'inline-flex';
+            }
+            if (copyBtn) {
+                copyBtn.style.display = tabName === 'table' ? 'none' : 'inline-flex';
+            }
+
+            if (tabName === 'table') {
+                populateTable();
+            }
+        }
+        
+        // Parse rules from editor text
+        function parseRules() {
+            const content = editor.value;
+            const sections = content.split(/(?=^\s*(?:alert|drop|pass|reject)\s)/m);
+            let searchCursor = 0;
+            
+            parsedRules = sections.map(rawSection => {
+                const cleanRule = rawSection.trim();
+                if (!cleanRule) return null;
+                if (!/^(alert|drop|pass|reject)/.test(cleanRule)) return null;
+                const absoluteStart = content.indexOf(cleanRule, searchCursor);
+                if (absoluteStart === -1) return null;
+                const absoluteEnd = absoluteStart + cleanRule.length;
+                searchCursor = absoluteEnd;
+
+                const ruleObj = {};
+                
+                // Extract action
+                const actionMatch = cleanRule.match(/^(alert|drop|pass|reject)/);
+                ruleObj.action = actionMatch ? actionMatch[1] : 'alert';
+                
+                // Extract protocol
+                const protocolMatch = cleanRule.match(/^(?:alert|drop|pass|reject)\s+(\w+)\s/);
+                ruleObj.protocol = protocolMatch ? protocolMatch[1] : 'tcp';
+                
+                // Extract source, source port, dest, dest port
+                const networkMatch = cleanRule.match(/(\$?[\w_]+)\s+([\w!<>\[\]|:]+)\s+->\s+(\$?[\w_]+)\s+([\w!<>\[\]|:]+)/);
+                ruleObj.source = networkMatch ? networkMatch[1] : 'any';
+                ruleObj.srcPort = networkMatch ? networkMatch[2] : 'any';
+                ruleObj.dest = networkMatch ? networkMatch[3] : 'any';
+                ruleObj.destPort = networkMatch ? networkMatch[4] : 'any';
+                
+                // Extract msg
+                const msgMatch = cleanRule.match(/msg:"([^"]+)"/);
+                ruleObj.msg = msgMatch ? msgMatch[1] : '';
+                
+                // Extract sid
+                const sidMatch = cleanRule.match(/sid:(\d+)/);
+                ruleObj.sid = sidMatch ? sidMatch[1] : '';
+                
+                // Extract rev
+                const revMatch = cleanRule.match(/rev:(\d+)/);
+                ruleObj.rev = revMatch ? revMatch[1] : '';
+
+                const optionsMatch = cleanRule.match(/\(([\s\S]*?)\)\s*$/);
+                let optionLines = [];
+                if (optionsMatch) {
+                    optionLines = optionsMatch[1]
+                        .split(';')
+                        .map(opt => opt.trim())
+                        .filter(opt => opt.length > 0);
+                }
+
+                ruleObj.otherOptions = optionLines.filter(opt => {
+                    const lowered = opt.toLowerCase();
+                    return !lowered.startsWith('msg:') && !lowered.startsWith('sid:') && !lowered.startsWith('rev:');
+                });
+                
+                ruleObj.rawRule = cleanRule;
+                ruleObj.startIndex = absoluteStart;
+                ruleObj.endIndex = absoluteEnd;
+                
+                return ruleObj;
+            }).filter(r => r !== null);
+            
+            updateDuplicateSidState(parsedRules);
+            return parsedRules;
+        }
+
+        function generateUniqueSid() {
+            const seen = new Set(parsedRules.filter(rule => rule && rule.sid).map(rule => rule.sid));
+            let candidate = 1000001;
+            while (seen.has(String(candidate))) {
+                candidate++;
+            }
+            return String(candidate);
+        }
+
+        function addRule() {
+            parseRules();
+            const newRule = {
+                action: 'alert',
+                protocol: 'tcp',
+                source: '$HOME_NET',
+                srcPort: 'any',
+                dest: '$EXTERNAL_NET',
+                destPort: 'any',
+                msg: 'Describe this rule',
+                sid: generateUniqueSid(),
+                rev: '1',
+                otherOptions: []
+            };
+            pendingRule = newRule;
+            openEditModal(-1, newRule);
+        }
+
+        function updateDuplicateSidState(rules = []) {
+            const counts = {};
+            duplicateSidSet = new Set();
+            rules.forEach(rule => {
+                if (!rule || !rule.sid) return;
+                counts[rule.sid] = (counts[rule.sid] || 0) + 1;
+            });
+            Object.entries(counts).forEach(([sid, count]) => {
+                if (count > 1) {
+                    duplicateSidSet.add(sid);
+                }
+            });
+            if (!duplicateWarning) return;
+            if (duplicateSidSet.size) {
+                const sidList = Array.from(duplicateSidSet).sort();
+                const preview = sidList.slice(0, 5).join(', ');
+                duplicateWarning.textContent = `⚠️ Duplicate SID${sidList.length > 1 ? 's' : ''}: ${preview}${sidList.length > 5 ? ', …' : ''}`;
+                duplicateWarning.classList.add('show');
+            } else {
+                duplicateWarning.textContent = '';
+                duplicateWarning.classList.remove('show');
+            }
+        }
+
+        function isSidDuplicate(sid, skipIndex = -1) {
+            if (!sid) return false;
+            return parsedRules.some((rule, idx) => idx !== skipIndex && rule.sid && rule.sid === sid);
+        }
+
+        function validateSidField() {
+            const sidField = document.getElementById('editSid');
+            if (!sidField) return;
+            const sidValue = sidField.value.trim();
+            const duplicate = isSidDuplicate(sidValue, currentEditIndex);
+            if (duplicate) {
+                sidField.setCustomValidity('SID must be unique');
+                sidField.reportValidity();
+            } else {
+                sidField.setCustomValidity('');
+            }
+        }
+
+        function ensureUniqueSidsBeforeSave() {
+            parseRules();
+            if (duplicateSidSet.size) {
+                showStatus('Resolve duplicate SID values before saving.', 'error');
+                return false;
+            }
+            return true;
+        }
+
+        function scrollEditorToRule(startPosition = 0) {
+            const computed = window.getComputedStyle(editor);
+            const lineHeight = parseFloat(computed.lineHeight) || 18;
+            const textBefore = editor.value.slice(0, startPosition);
+            const lineOffset = textBefore.split('\n').length - 1;
+            const bufferLines = 3;
+            const targetScroll = Math.max((lineOffset - bufferLines) * lineHeight, 0);
+            editor.scrollTop = targetScroll;
+            lineNumbers.scrollTop = targetScroll;
+        }
+
+        function focusRuleInEditor(index) {
+            const rules = parsedRules.length ? parsedRules : parseRules();
+            const rule = rules[index];
+            if (!rule) return;
+            switchTab('editor');
+            setTimeout(() => {
+                const start = rule.startIndex ?? 0;
+                const end = rule.endIndex ?? start;
+                editor.focus();
+                editor.setSelectionRange(start, end);
+                scrollEditorToRule(start);
+            }, 60);
+        }
+
+        function sanitizeOption(option = '') {
+            return option.replace(/;+$/, '').trim();
+        }
+
+        function collectOptionSegments(rule) {
+            const segments = [];
+            if (rule.msg) {
+                const escapedMsg = rule.msg.replace(/"/g, "\\\"");
+                segments.push(`msg:"${escapedMsg}"`);
+            }
+            (rule.otherOptions || []).forEach(opt => {
+                const cleaned = sanitizeOption(opt);
+                if (cleaned) {
+                    segments.push(cleaned);
+                }
+            });
+            if (rule.sid) segments.push(`sid:${rule.sid}`);
+            if (rule.rev) segments.push(`rev:${rule.rev}`);
+            return segments;
+        }
+
+        function buildRuleString(rule) {
+            const ruleData = {
+                action: rule.action || 'alert',
+                protocol: rule.protocol || 'tcp',
+                source: rule.source || 'any',
+                srcPort: rule.srcPort || 'any',
+                dest: rule.dest || 'any',
+                destPort: rule.destPort || 'any'
+            };
+            const segments = collectOptionSegments(rule);
+            const optionsBlock = segments.length
+                ? segments.map(seg => `    ${sanitizeOption(seg)};`).join('\n')
+                : '    ';
+            return `${ruleData.action} ${ruleData.protocol} ${ruleData.source} ${ruleData.srcPort} -> ${ruleData.dest} ${ruleData.destPort} (\n${optionsBlock}\n)`;
+        }
+
+        function serializeOtherOptions(options = []) {
+            return options.map(opt => {
+                const cleaned = sanitizeOption(opt);
+                return cleaned ? `${cleaned};` : '';
+            }).filter(Boolean).join('\n');
+        }
+
+        function parseOptionsInput(value = '') {
+            return value
+                .split(/[\n;]/)
+                .map(opt => opt.trim())
+                .filter(opt => opt.length > 0)
+                .map(opt => sanitizeOption(opt));
+        }
+
+        function updateEditPreview() {
+            const preview = document.getElementById('editPreview');
+            const optionsField = document.getElementById('editOptions');
+            if (!preview || !optionsField) return;
+            const previewRule = {
+                action: document.getElementById('editAction').value.trim() || 'alert',
+                protocol: document.getElementById('editProtocol').value.trim() || 'tcp',
+                source: document.getElementById('editSource').value.trim() || 'any',
+                srcPort: document.getElementById('editSrcPort').value.trim() || 'any',
+                dest: document.getElementById('editDest').value.trim() || 'any',
+                destPort: document.getElementById('editDestPort').value.trim() || 'any',
+                msg: document.getElementById('editMsg').value,
+                sid: document.getElementById('editSid').value,
+                rev: document.getElementById('editRev').value,
+                otherOptions: parseOptionsInput(optionsField.value)
+            };
+            preview.value = buildRuleString(previewRule).trim();
+        }
+        
+        function handleMessageFilter(value = '') {
+            messageFilter = value.trim().toLowerCase();
+            populateTable();
+        }
+
+        // Populate the table
+        function populateTable() {
+            const rules = parseRules();
+            const tbody = document.getElementById('rulesTableBody');
+            tbody.innerHTML = '';
+
+            const sorted = rules
+                .map((rule, index) => ({ rule, index }))
+                .sort((a, b) => {
+                    const sidA = parseInt(a.rule.sid, 10);
+                    const sidB = parseInt(b.rule.sid, 10);
+                    if (isNaN(sidA) && isNaN(sidB)) return 0;
+                    if (isNaN(sidA)) return 1;
+                    if (isNaN(sidB)) return -1;
+                    return sidA - sidB;
+                });
+
+            const filtered = sorted.filter(({ rule }) => {
+                if (!messageFilter) return true;
+                return (rule.msg || '').toLowerCase().includes(messageFilter);
+            });
+
+            if (!filtered.length) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = `
+                    <td colspan="4" style="text-align:center; padding: 30px; color: #777; font-weight: 600;">
+                        No rules match "${escapeHtml(messageFilter)}".
+                    </td>`;
+                tbody.appendChild(emptyRow);
+                return;
+            }
+
+            filtered.forEach(({ rule, index }) => {
+                const row = document.createElement('tr');
+                const rulePreview = `${rule.action} ${rule.protocol} ${rule.source} ${rule.srcPort} -> ${rule.dest} ${rule.destPort}`;
+                if (duplicateSidSet.has(rule.sid)) {
+                    row.classList.add('duplicate-sid');
+                    row.setAttribute('title', 'Duplicate SID');
+                }
+                
+                row.innerHTML = `
+                    <td><strong>${escapeHtml(rule.sid)}</strong></td>
+                    <td><strong>${escapeHtml(rule.msg)}</strong></td>
+                    <td><code style="font-size: 11px; color: #666;">${escapeHtml(rulePreview)}</code></td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-small" onclick="focusRuleInEditor(${index})" title="Edit in text editor">📝 Text edit</button>
+                            <button class="btn-small" onclick="openEditModal(${index})" title="Edit in popup">✏️ Edit here</button>
+                            <button class="btn-small delete" onclick="deleteRule(${index})">🗑️</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        let currentEditIndex = -1;
+        let pendingRule = null;
+        const editFieldIds = ['editAction', 'editProtocol', 'editSource', 'editSrcPort', 'editDest', 'editDestPort', 'editMsg', 'editSid', 'editRev', 'editOptions'];
+        editFieldIds.forEach(id => {
+            const field = document.getElementById(id);
+            if (field) {
+                field.addEventListener('input', () => {
+                    if (id === 'editSid') {
+                        validateSidField();
+                    }
+                    updateEditPreview();
+                });
+            }
+        });
+        
+        // Open edit modal
+        function openEditModal(index, overrideRule = null) {
+            const rules = parseRules();
+            const rule = overrideRule || rules[index];
+            currentEditIndex = index;
+            
+            document.getElementById('editAction').value = rule.action;
+            document.getElementById('editProtocol').value = rule.protocol;
+            document.getElementById('editSource').value = rule.source;
+            document.getElementById('editSrcPort').value = rule.srcPort;
+            document.getElementById('editDest').value = rule.dest;
+            document.getElementById('editDestPort').value = rule.destPort;
+            document.getElementById('editMsg').value = rule.msg;
+            document.getElementById('editSid').value = rule.sid;
+            document.getElementById('editRev').value = rule.rev;
+            document.getElementById('editOptions').value = serializeOtherOptions(rule.otherOptions || []);
+            validateSidField();
+            updateEditPreview();
+            
+            document.getElementById('editModal').classList.add('show');
+        }
+        
+        // Close edit modal
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('show');
+            currentEditIndex = -1;
+            pendingRule = null;
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                const modal = document.getElementById('editModal');
+                if (modal && modal.classList.contains('show')) {
+                    closeEditModal();
+                }
+            }
+        });
+        
+        // Save edited rule
+        function saveEditedRule() {
+            if (currentEditIndex < 0 && pendingRule == null) {
+                return;
+            }
+            
+            let target = parsedRules[currentEditIndex];
+            const isNewRule = currentEditIndex < 0 || currentEditIndex >= parsedRules.length;
+            const updatedRule = {
+                action: document.getElementById('editAction').value.trim() || 'alert',
+                protocol: document.getElementById('editProtocol').value.trim() || 'tcp',
+                source: document.getElementById('editSource').value.trim() || 'any',
+                srcPort: document.getElementById('editSrcPort').value.trim() || 'any',
+                dest: document.getElementById('editDest').value.trim() || 'any',
+                destPort: document.getElementById('editDestPort').value.trim() || 'any',
+                msg: document.getElementById('editMsg').value,
+                sid: document.getElementById('editSid').value,
+                rev: document.getElementById('editRev').value,
+                otherOptions: parseOptionsInput(document.getElementById('editOptions').value)
+            };
+            const compareIndex = isNewRule ? -1 : currentEditIndex;
+            if (isSidDuplicate(updatedRule.sid, compareIndex)) {
+                showStatus('SID already exists. Please choose a unique value.', 'error');
+                validateSidField();
+                return;
+            }
+            if (isNewRule) {
+                parsedRules.push(updatedRule);
+                target = updatedRule;
+                currentEditIndex = parsedRules.length - 1;
+            } else {
+                Object.assign(target, updatedRule);
+            }
+            target.rawRule = buildRuleString(target).trim();
+            
+            rebuildEditor();
+            closeEditModal();
+            populateTable();
+            showStatus('Rule updated', 'success');
+            pendingRule = null;
+        }
+        
+        // Escape HTML to prevent injection
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+        
+        // Delete rule
+        function deleteRule(index) {
+            if (confirm('Delete this rule?')) {
+                parsedRules.splice(index, 1);
+                rebuildEditor();
+                populateTable();
+            }
+        }
+        
+        // Rebuild editor from parsed rules
+        function rebuildEditor() {
+            const formattedRules = parsedRules.map(rule => {
+                const formatted = buildRuleString(rule).trim();
+                rule.rawRule = formatted;
+                return formatted;
+            });
+            const output = formattedRules.join('\n\n');
+            editor.value = output ? `${output}\n` : '';
+            updateDisplay();
+            updateDuplicateSidState(parsedRules);
+        }
+        
+        // Update line numbers and stats
+        function updateDisplay() {
+            const lines = editor.value.split('\n');
+            const lineCount = lines.length;
+            const charCount = editor.value.length;
+            const ruleCount = editor.value.match(/^alert\s/gm)?.length || 0;
+            
+            // Generate line numbers - each on its own line
+            lineNumbers.innerHTML = '';
+            for (let i = 1; i <= lineCount; i++) {
+                const lineNum = document.createElement('div');
+                lineNum.textContent = i;
+                lineNum.style.height = '1.5em';
+                lineNumbers.appendChild(lineNum);
+            }
+            stats.textContent = `Lines: ${lineCount} | Characters: ${charCount} | Rules: ${ruleCount}`;
+        }
+        
+        // Scroll editor and line numbers together
+        editor.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = editor.scrollTop;
+        });
+        
+        // Update on input
+        editor.addEventListener('input', updateDisplay);
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, start) + '\t' + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 1;
+                updateDisplay();
+            }
+        });
+        
+        // Auto-save functionality (every 2 seconds if changed)
+        // Load file
+        function loadFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                editor.value = e.target.result;
+                updateDisplay();
+                populateTable();
+                showStatus('File loaded successfully', 'success');
+            };
+            reader.onerror = () => {
+                showStatus('Error loading file', 'error');
+            };
+            reader.readAsText(file);
+        }
+        
+        // Save file
+        function promptDownload() {
+            if (!ensureUniqueSidsBeforeSave()) {
+                return;
+            }
+            const defaultName = 'local.rules';
+            let filename = prompt('File name for download:', defaultName);
+            if (filename === null) {
+                return;
+            }
+            filename = filename.trim() || defaultName;
+            triggerDownload(filename);
+        }
+
+        function triggerDownload(filename) {
+            if (!ensureUniqueSidsBeforeSave()) {
+                return;
+            }
+            const content = editor.value;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatus(`File downloaded as ${filename}`, 'success');
+        }
+        
+        // Copy to clipboard
+        function copyToClipboard() {
+            editor.select();
+            document.execCommand('copy');
+            showStatus('Copied to clipboard', 'success');
+        }
+        
+        // Clear editor with confirmation
+        function clearEditor() {
+            confirmModal.classList.add('show');
+        }
+        
+        function confirmClear() {
+            editor.value = '';
+            updateDisplay();
+            populateTable();
+            showStatus('Editor cleared', 'success');
+            closeModal();
+        }
+        
+        function closeModal() {
+            confirmModal.classList.remove('show');
+        }
+        
+        // Auto format - Format Suricata rules properly
+        function autoFormat() {
+            let content = editor.value;
+            
+            // Split by alert/drop/pass rules
+            const rules = content.split(/(?=^(?:alert|drop|pass|reject)\s)/m);
+            
+            const formattedRules = rules.map(rule => {
+                if (!rule.trim()) return '';
+                
+                // Extract the action and header (alert http $HOME_NET any -> $EXTERNAL_NET any)
+                const headerMatch = rule.match(/^((?:alert|drop|pass|reject)\s+[^(]+)\(/);
+                if (!headerMatch) return rule; // Return as-is if can't parse
+                
+                const header = headerMatch[1].trim();
+                const contentPart = rule.substring(headerMatch[0].length);
+                
+                // Extract the rule options (content between parentheses)
+                const optionsMatch = contentPart.match(/^([\s\S]*?)\)\s*$/);
+                if (!optionsMatch) return rule; // Return as-is if can't parse
+                
+                let options = optionsMatch[1];
+                
+                // Split options by semicolon, trim each one
+                let optionLines = options
+                    .split(';')
+                    .map(opt => opt.trim())
+                    .filter(opt => opt.length > 0);
+                
+                // Format with proper indentation
+                let formatted = header + ' (\n';
+                optionLines.forEach((opt, index) => {
+                    formatted += '    ' + opt;
+                    if (index < optionLines.length - 1) {
+                        formatted += ';';
+                    }
+                    formatted += '\n';
+                });
+                formatted += ')\n';
+                
+                return formatted;
+            }).filter(rule => rule.trim());
+            
+            editor.value = formattedRules.join('\n');
+            updateDisplay();
+            populateTable();
+            showStatus('Formatting applied', 'success');
+        }
+        
+        // Show status message
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status show ${type}`;
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Close modal on outside click
+        confirmModal.addEventListener('click', (e) => {
+            if (e.target === confirmModal) closeModal();
+        });
+        
+        // Initialize
+        loadExampleRulesIfEmpty();
+        updateDisplay();
+        populateTable();
+        switchTab('editor');
+    </script>
+</body>
+</html>
