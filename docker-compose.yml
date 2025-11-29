@@ -3,7 +3,6 @@ services:
     build: ./rules-editor
     container_name: rules-editor
     volumes:
-      - ./suricata/rules:/rules
       - ./rules-editor:/app
     ports:
       - "8083:8000"
