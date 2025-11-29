@@ -992,9 +992,12 @@
 
             if (!filtered.length) {
                 const emptyRow = document.createElement('tr');
+                const message = messageFilter
+                    ? `No rules match "${escapeHtml(messageFilter)}".`
+                    : 'No rules.';
                 emptyRow.innerHTML = `
                     <td colspan="4" style="text-align:center; padding: 30px; color: #777; font-weight: 600;">
-                        No rules match "${escapeHtml(messageFilter)}".
+                        ${message}
                     </td>`;
                 tbody.appendChild(emptyRow);
                 return;
@@ -1266,6 +1269,11 @@
         // Auto format - Format Suricata rules properly
         function autoFormat() {
             let content = editor.value;
+
+            if (!content.trim()) {
+                showStatus('Nothing to format—add or import rules first.', 'error');
+                return;
+            }
             
             // Split by alert/drop/pass rules
             const rules = content.split(/(?=^(?:alert|drop|pass|reject)\s)/m);
