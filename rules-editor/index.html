@@ -184,6 +184,29 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            position: relative;
+        }
+        
+        .editor-highlight-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            overflow-y: auto;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: transparent;
+        }
+        
+        .highlight-line-error {
+            background-color: rgba(255, 0, 0, 0.15);
+            border-left: 3px solid #ff0000;
         }
         
         #editor {
@@ -197,6 +220,8 @@
             outline: none;
             background: white;
             color: #333;
+            position: relative;
+            z-index: 1;
         }
         
         .footer {
@@ -209,10 +234,20 @@
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
         .duplicate-warning {
+            text-align: right;
             margin-left: auto;
+            order: 3;
             color: #c62828;
             font-weight: 600;
             display: none;
@@ -557,6 +592,7 @@
             <div class="content">
                 <div class="line-numbers" id="lineNumbers">1</div>
                 <div class="editor-area">
+                    <div class="editor-highlight-layer" id="highlightLayer"></div>
                     <textarea id="editor" placeholder="Paste your Suricata rules here or load a file..."></textarea>
                 </div>
             </div>
@@ -577,7 +613,7 @@
                             <th style="width: 60px;">SID</th>
                             <th style="width: 220px;">Message</th>
                             <th style="width: 220px;">Rule Preview</th>
-                            <th style="width: 200px;">Actions</th>
+                            <th style="width: 200px; text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="rulesTableBody">
@@ -587,11 +623,13 @@
         </div>
         
         <div class="footer">
-            <span id="stats">Lines: 0 | Characters: 0 | Rules: 0</span>
+            <div class="footer-left">
+                <span id="stats">Lines: 0 | Characters: 0 | Rules: 0</span>
+                <span style="font-size: 12px; color: #555; font-weight: 600;">
+                    © 2025 · Made by <a href="https://github.com/Tomparte" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">Tomparte</a>
+                </span>
+            </div>
             <span id="duplicateWarning" class="duplicate-warning"></span>
-            <span style="font-size: 12px; color: #555; font-weight: 600;">
-                © 2025 · Made by <a href="https://github.com/Tomparte" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">Tomparte</a>
-            </span>
         </div>
     </div>
     
@@ -606,6 +644,17 @@
         </div>
     </div>
     
+    <div class="modal" id="deleteRuleModal">
+        <div class="modal-content">
+            <h2>Delete Rule?</h2>
+            <p>Are you sure you want to delete this rule? This action cannot be undone.</p>
+            <div class="modal-buttons">
+                <button class="button" onclick="closeDeleteModal()">Cancel</button>
+                <button class="button danger" onclick="confirmDeleteRule()">Delete</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="modal" id="editModal">
         <div class="modal-content">
             <h2>Edit Rule</h2>
@@ -614,9 +663,12 @@
                     <label style="font-weight: 600; display: block; margin-bottom: 5px;">Action:</label>
                     <select id="editAction" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
                         <option value="alert">alert</option>
-                        <option value="drop">drop</option>
                         <option value="pass">pass</option>
+                        <option value="drop">drop</option>
                         <option value="reject">reject</option>
+                        <option value="rejectsrc">rejectsrc</option>
+                        <option value="rejectdst">rejectdst</option>
+                        <option value="rejectboth">rejectboth</option>
                     </select>
                 </div>
                 <div>
@@ -658,6 +710,10 @@
                     </div>
                 </div>
                 <div>
+                    <label style="font-weight: 600; display: block; margin-bottom: 5px;">Class Type:</label>
+                    <input type="text" id="editClasstype" placeholder="e.g. attempted-admin, web-application-attack" style="width: 100%; padding: 8px;">
+                </div>
+                <div>
                     <label style="font-weight: 600; display: block; margin-bottom: 5px;">Additional Options:</label>
                     <textarea id="editOptions" placeholder="content:&quot;/api&quot;; flow:to_server;" style="min-height: 100px;"></textarea>
                     <p style="font-size: 12px; color: #777; margin-top: 4px;">Separate entries with new lines or semicolons. Leave empty to keep only msg/sid/rev.</p>
@@ -680,14 +736,34 @@
         const status = document.getElementById('status');
         const stats = document.getElementById('stats');
         const confirmModal = document.getElementById('confirmModal');
+        const deleteRuleModal = document.getElementById('deleteRuleModal');
         const duplicateWarning = document.getElementById('duplicateWarning');
         const autoFormatBtn = document.getElementById('autoFormatBtn');
         const copyBtn = document.getElementById('copyButton');
-        const defaultExampleRules = `# Example local.rules :\nalert http $EXTERNAL_NET any -> $HOME_NET any (\n    msg:"Example alert for suspicious login attempt";\n    content:"/login";\n    http_method;\n    sid:1000001;\n    rev:1;\n)\n\nalert tcp any any -> $HOME_NET 445 (\n    msg:"Example SMB exploit attempt";\n    flow:to_server,established;\n    content:"|90 90 90|";\n    sid:1000002;\n    rev:1;\n)\n`;
+        const defaultExampleRules = `# Example local.rules :
+alert http $EXTERNAL_NET any -> $HOME_NET any (
+    msg:"Example alert for suspicious login attempt";
+    content:"/login";
+    http_method;
+    classtype:attempted-admin;
+    sid:1000001;
+    rev:1;
+)
+
+alert tcp any any -> $HOME_NET 445 (
+    msg:"Example SMB exploit attempt";
+    flow:to_server,established;
+    content:"|90 90 90|";
+    classtype:attempted-admin;
+    sid:1000002;
+    rev:1;
+)
+`;
         
         let parsedRules = [];
         let duplicateSidSet = new Set();
         let messageFilter = '';
+        let deleteRuleIndex = null;
         
         function loadExampleRulesIfEmpty() {
             if (editor.value.trim()) return;
@@ -724,13 +800,13 @@
         // Parse rules from editor text
         function parseRules() {
             const content = editor.value;
-            const sections = content.split(/(?=^\s*(?:alert|drop|pass|reject)\s)/m);
+            const sections = content.split(/(?=^\s*(?:alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s)/m);
             let searchCursor = 0;
             
             parsedRules = sections.map(rawSection => {
                 const cleanRule = rawSection.trim();
                 if (!cleanRule) return null;
-                if (!/^(alert|drop|pass|reject)/.test(cleanRule)) return null;
+                if (!/^(alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)/.test(cleanRule)) return null;
                 const absoluteStart = content.indexOf(cleanRule, searchCursor);
                 if (absoluteStart === -1) return null;
                 const absoluteEnd = absoluteStart + cleanRule.length;
@@ -739,11 +815,11 @@
                 const ruleObj = {};
                 
                 // Extract action
-                const actionMatch = cleanRule.match(/^(alert|drop|pass|reject)/);
+                const actionMatch = cleanRule.match(/^(alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)/);
                 ruleObj.action = actionMatch ? actionMatch[1] : 'alert';
                 
                 // Extract protocol
-                const protocolMatch = cleanRule.match(/^(?:alert|drop|pass|reject)\s+(\w+)\s/);
+                const protocolMatch = cleanRule.match(/^(?:alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s+(\w+)\s/);
                 ruleObj.protocol = protocolMatch ? protocolMatch[1] : 'tcp';
                 
                 // Extract source, source port, dest, dest port
@@ -765,6 +841,10 @@
                 const revMatch = cleanRule.match(/rev:(\d+)/);
                 ruleObj.rev = revMatch ? revMatch[1] : '';
 
+                // Extract classtype
+                const classtypeMatch = cleanRule.match(/classtype:([^;]+)/);
+                ruleObj.classtype = classtypeMatch ? classtypeMatch[1].trim() : '';
+
                 const optionsMatch = cleanRule.match(/\(([\s\S]*?)\)\s*$/);
                 let optionLines = [];
                 if (optionsMatch) {
@@ -776,7 +856,7 @@
 
                 ruleObj.otherOptions = optionLines.filter(opt => {
                     const lowered = opt.toLowerCase();
-                    return !lowered.startsWith('msg:') && !lowered.startsWith('sid:') && !lowered.startsWith('rev:');
+                    return !lowered.startsWith('msg:') && !lowered.startsWith('sid:') && !lowered.startsWith('rev:') && !lowered.startsWith('classtype:');
                 });
                 
                 ruleObj.rawRule = cleanRule;
@@ -909,6 +989,7 @@
                     segments.push(cleaned);
                 }
             });
+            if (rule.classtype) segments.push(`classtype:${rule.classtype}`);
             if (rule.sid) segments.push(`sid:${rule.sid}`);
             if (rule.rev) segments.push(`rev:${rule.rev}`);
             return segments;
@@ -959,6 +1040,7 @@
                 msg: document.getElementById('editMsg').value,
                 sid: document.getElementById('editSid').value,
                 rev: document.getElementById('editRev').value,
+                classtype: document.getElementById('editClasstype').value.trim(),
                 otherOptions: parseOptionsInput(optionsField.value)
             };
             preview.value = buildRuleString(previewRule).trim();
@@ -1016,7 +1098,7 @@
                     <td><strong>${escapeHtml(rule.sid)}</strong></td>
                     <td><strong>${escapeHtml(rule.msg)}</strong></td>
                     <td><code style="font-size: 11px; color: #666;">${escapeHtml(rulePreview)}</code></td>
-                    <td>
+                    <td style="text-align: center;">
                         <div class="action-buttons">
                             <button class="btn-small" onclick="focusRuleInEditor(${index})" title="Edit in text editor">📝 Text edit</button>
                             <button class="btn-small" onclick="openEditModal(${index})" title="Edit in popup">✏️ Edit here</button>
@@ -1030,7 +1112,7 @@
         
         let currentEditIndex = -1;
         let pendingRule = null;
-        const editFieldIds = ['editAction', 'editProtocol', 'editSource', 'editSrcPort', 'editDest', 'editDestPort', 'editMsg', 'editSid', 'editRev', 'editOptions'];
+        const editFieldIds = ['editAction', 'editProtocol', 'editSource', 'editSrcPort', 'editDest', 'editDestPort', 'editMsg', 'editSid', 'editRev', 'editClasstype', 'editOptions'];
         editFieldIds.forEach(id => {
             const field = document.getElementById(id);
             if (field) {
@@ -1040,6 +1122,15 @@
                     }
                     updateEditPreview();
                 });
+                // Also listen for change event (for select elements)
+                if (field.tagName === 'SELECT') {
+                    field.addEventListener('change', () => {
+                        if (id === 'editSid') {
+                            validateSidField();
+                        }
+                        updateEditPreview();
+                    });
+                }
             }
         });
         
@@ -1058,6 +1149,7 @@
             document.getElementById('editMsg').value = rule.msg;
             document.getElementById('editSid').value = rule.sid;
             document.getElementById('editRev').value = rule.rev;
+            document.getElementById('editClasstype').value = rule.classtype || '';
             document.getElementById('editOptions').value = serializeOtherOptions(rule.otherOptions || []);
             validateSidField();
             updateEditPreview();
@@ -1099,6 +1191,7 @@
                 msg: document.getElementById('editMsg').value,
                 sid: document.getElementById('editSid').value,
                 rev: document.getElementById('editRev').value,
+                classtype: document.getElementById('editClasstype').value.trim(),
                 otherOptions: parseOptionsInput(document.getElementById('editOptions').value)
             };
             const compareIndex = isNewRule ? -1 : currentEditIndex;
@@ -1137,11 +1230,23 @@
         
         // Delete rule
         function deleteRule(index) {
-            if (confirm('Delete this rule?')) {
-                parsedRules.splice(index, 1);
+            deleteRuleIndex = index;
+            deleteRuleModal.classList.add('show');
+        }
+        
+        function confirmDeleteRule() {
+            if (deleteRuleIndex !== null) {
+                parsedRules.splice(deleteRuleIndex, 1);
                 rebuildEditor();
                 populateTable();
+                showStatus('Rule deleted', 'success');
+                closeDeleteModal();
             }
+        }
+        
+        function closeDeleteModal() {
+            deleteRuleModal.classList.remove('show');
+            deleteRuleIndex = null;
         }
         
         // Rebuild editor from parsed rules
@@ -1159,6 +1264,10 @@
         
         // Update line numbers and stats
         function updateDisplay() {
+            // Parse rules and update duplicate detection
+            parseRules();
+            updateDuplicateSidState(parsedRules);
+            
             const lines = editor.value.split('\n');
             const lineCount = lines.length;
             const charCount = editor.value.length;
@@ -1172,12 +1281,39 @@
                 lineNum.style.height = '1.5em';
                 lineNumbers.appendChild(lineNum);
             }
+            
+            // Update highlight layer for duplicate SIDs
+            const highlightLayer = document.getElementById('highlightLayer');
+            if (highlightLayer) {
+                highlightLayer.innerHTML = '';
+                lines.forEach((line, index) => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.style.height = '1.5em';
+                    
+                    // Check if this line contains a duplicate SID
+                    const sidMatch = line.match(/sid:(\d+)/);
+                    if (sidMatch && duplicateSidSet.has(sidMatch[1])) {
+                        lineDiv.className = 'highlight-line-error';
+                    }
+                    
+                    lineDiv.textContent = line;
+                    highlightLayer.appendChild(lineDiv);
+                });
+                
+                // Sync scroll position
+                highlightLayer.scrollTop = editor.scrollTop;
+            }
+            
             stats.textContent = `Lines: ${lineCount} | Characters: ${charCount} | Rules: ${ruleCount}`;
         }
         
         // Scroll editor and line numbers together
         editor.addEventListener('scroll', () => {
             lineNumbers.scrollTop = editor.scrollTop;
+            const highlightLayer = document.getElementById('highlightLayer');
+            if (highlightLayer) {
+                highlightLayer.scrollTop = editor.scrollTop;
+            }
         });
         
         // Update on input
@@ -1277,13 +1413,13 @@
             }
             
             // Split by alert/drop/pass rules
-            const rules = content.split(/(?=^(?:alert|drop|pass|reject)\s)/m);
+            const rules = content.split(/(?=^(?:alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s)/m);
             
             const formattedRules = rules.map(rule => {
                 if (!rule.trim()) return '';
                 
                 // Extract the action and header (alert http $HOME_NET any -> $EXTERNAL_NET any)
-                const headerMatch = rule.match(/^((?:alert|drop|pass|reject)\s+[^(]+)\(/);
+                const headerMatch = rule.match(/^((?:alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s+[^(]+)\(/);
                 if (!headerMatch) return rule; // Return as-is if can't parse
                 
                 const header = headerMatch[1].trim();
