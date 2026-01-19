@@ -1273,17 +1273,34 @@ alert tcp any any -> $HOME_NET 445 (
             updateDuplicateSidState(parsedRules);
             
             const lines = editor.value.split('\n');
-            const lineCount = lines.length;
             const charCount = editor.value.length;
             const ruleCount = editor.value.match(/^alert\s/gm)?.length || 0;
             
-            // Generate line numbers - each on its own line
+            // Generate line numbers - one per rule block (not per visual line)
             lineNumbers.innerHTML = '';
-            for (let i = 1; i <= lineCount; i++) {
-                const lineNum = document.createElement('div');
-                lineNum.textContent = i;
-                lineNum.style.height = '1.5em';
-                lineNumbers.appendChild(lineNum);
+            let ruleLineNum = 1;
+            let inRuleBlock = false;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const lineDiv = document.createElement('div');
+                lineDiv.style.height = '1.5em';
+                
+                // Check if this line starts a new rule
+                if (/^(alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s/.test(line)) {
+                    lineDiv.textContent = ruleLineNum;
+                    ruleLineNum++;
+                    inRuleBlock = true;
+                } else if (inRuleBlock && line.trim() === ')') {
+                    // End of rule block
+                    lineDiv.textContent = '';
+                    inRuleBlock = false;
+                } else {
+                    // Lines within rule or empty lines get no number
+                    lineDiv.textContent = '';
+                }
+                
+                lineNumbers.appendChild(lineDiv);
             }
             
             // Update highlight layer for duplicate SIDs
@@ -1308,7 +1325,7 @@ alert tcp any any -> $HOME_NET 445 (
                 highlightLayer.scrollTop = editor.scrollTop;
             }
             
-            stats.textContent = `Lines: ${lineCount} | Characters: ${charCount} | Rules: ${ruleCount}`;
+            stats.textContent = `Lines: ${ruleCount} | Characters: ${charCount} | Rules: ${ruleCount}`;
         }
         
         // Scroll editor and line numbers together
@@ -1370,8 +1387,24 @@ alert tcp any any -> $HOME_NET 445 (
             if (!ensureUniqueSidsBeforeSave()) {
                 return;
             }
-            const content = editor.value;
-            const blob = new Blob([content], { type: 'text/plain' });
+            // Export: each rule must be on a single line for Suricata
+            const rules = parseRules();
+            const exportedLines = rules.map(rule => {
+                // Build rule on a single line
+                const ruleData = {
+                    action: rule.action || 'alert',
+                    protocol: rule.protocol || 'tcp',
+                    source: rule.source || 'any',
+                    srcPort: rule.srcPort || 'any',
+                    dest: rule.dest || 'any',
+                    destPort: rule.destPort || 'any'
+                };
+                const segments = collectOptionSegments(rule);
+                const optionsBlock = segments.map(seg => sanitizeOption(seg) + ';').join(' ');
+                return `${ruleData.action} ${ruleData.protocol} ${ruleData.source} ${ruleData.srcPort} -> ${ruleData.dest} ${ruleData.destPort} (${optionsBlock})`;
+            });
+            const exportContent = exportedLines.join('\n');
+            const blob = new Blob([exportContent], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -1407,7 +1440,7 @@ alert tcp any any -> $HOME_NET 445 (
             confirmModal.classList.remove('show');
         }
         
-        // Auto format - Format Suricata rules properly
+        // Auto format - Format Suricata rules (one rule per line, displayed nicely with wrapping)
         function autoFormat() {
             let content = editor.value;
 
@@ -1416,44 +1449,25 @@ alert tcp any any -> $HOME_NET 445 (
                 return;
             }
             
-            // Split by alert/drop/pass rules
-            const rules = content.split(/(?=^(?:alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s)/m);
+            const rules = parseRules();
             
+            // Format each rule on a single line (with newlines treated as visual wrapping)
             const formattedRules = rules.map(rule => {
-                if (!rule.trim()) return '';
-                
-                // Extract the action and header (alert http $HOME_NET any -> $EXTERNAL_NET any)
-                const headerMatch = rule.match(/^((?:alert|drop|pass|rejectboth|rejectdst|rejectsrc|reject)\s+[^(]+)\(/);
-                if (!headerMatch) return rule; // Return as-is if can't parse
-                
-                const header = headerMatch[1].trim();
-                const contentPart = rule.substring(headerMatch[0].length);
-                
-                // Extract the rule options (content between parentheses)
-                const optionsMatch = contentPart.match(/^([\s\S]*?)\)\s*$/);
-                if (!optionsMatch) return rule; // Return as-is if can't parse
-                
-                let options = optionsMatch[1];
-                
-                // Split options by semicolon, trim each one
-                let optionLines = options
-                    .split(';')
-                    .map(opt => opt.trim())
-                    .filter(opt => opt.length > 0);
-                
-                // Format with proper indentation
-                let formatted = header + ' (\n';
-                optionLines.forEach((opt, index) => {
-                    formatted += '    ' + opt;
-                    if (index < optionLines.length - 1) {
-                        formatted += ';';
-                    }
-                    formatted += '\n';
-                });
-                formatted += ')\n';
-                
-                return formatted;
-            }).filter(rule => rule.trim());
+                const ruleData = {
+                    action: rule.action || 'alert',
+                    protocol: rule.protocol || 'tcp',
+                    source: rule.source || 'any',
+                    srcPort: rule.srcPort || 'any',
+                    dest: rule.dest || 'any',
+                    destPort: rule.destPort || 'any'
+                };
+                const segments = collectOptionSegments(rule);
+                // Put newlines and indentation for nice display
+                const optionsBlock = segments
+                    .map(seg => `\n    ${sanitizeOption(seg)};`)
+                    .join('');
+                return `${ruleData.action} ${ruleData.protocol} ${ruleData.source} ${ruleData.srcPort} -> ${ruleData.dest} ${ruleData.destPort} (${optionsBlock}\n)`;
+            });
             
             editor.value = formattedRules.join('\n');
             updateDisplay();
